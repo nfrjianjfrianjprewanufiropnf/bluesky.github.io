@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #message, #finalMessage {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: red;
+            font-size: 24px;
+            white-space: pre-wrap;
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+            overflow: hidden;
+        }
+        .message-text {
+            padding: 10px;
+        }
+        .scroll-container {
+            height: 100%;
+            overflow: hidden;
+        }
+        .scroll-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+    <title>ぬの回転</title>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="message" class="scroll-container">
+        <div class="scroll-content" id="messageContent"></div>
+    </div>
+    <div id="finalMessage" class="scroll-container" style="display: none;">
+        <div class="scroll-content" id="finalMessageContent"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const colors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'pink'];
+        const fonts = ['Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Comic Sans MS', 'Verdana'];
+
+        class Nu {
+            constructor(rotate = false) {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 100 + 30;
+                this.color = colors[Math.floor(Math.random() * colors.length)];
+                this.font = fonts[Math.floor(Math.random() * fonts.length)];
+                this.speedX = Math.random() * 4 - 2;
+                this.speedY = Math.random() * 4 - 2;
+                this.rotate = rotate;
+                this.angle = 0;
+                this.rotateSpeed = (Math.random() * 2 + 0.1) * (Math.random() < 0.5 ? -1 : 1);
+                this.isFalling = false;
+                this.isMe = false;
+                this.isBurst = false;
+                this.burstTime = 0;
+            }
+
+            draw() {
+                if (this.isBurst) return;
+                ctx.save();
+                ctx.translate(this.x + this.size / 2, this.y + this.size / 2);
+                if (this.rotate) {
+                    ctx.rotate(this.angle * Math.PI / 180);
+                }
+                ctx.font = `${this.size}px ${this.font}`;
+                ctx.fillStyle = this.isMe ? 'white' : this.color;
+                ctx.fillText(this.isMe ? 'め' : 'ぬ', -this.size / 2, this.size / 2);
+                ctx.restore();
+            }
+
+            update() {
+                if (this.isFalling) {
+                    this.y += 5;
+                    if (this.y > canvas.height) {
+                        this.y = canvas.height;
+                        this.speedX = 0;
+                        this.speedY = 0;
+                    }
+                } else if (this.isMe && !this.isBurst) {
+                    const now = Date.now();
+                    if (this.burstTime === 0) {
+                        this.burstTime = now;
+                    }
+                    if (now - this.burstTime > 2000) {
+                        this.isBurst = true;
+                    }
+                } else if (!this.isMe) {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+
+                    if (this.x + this.size > canvas.width || this.x < 0) {
+                        this.speedX *= -1;
+                    }
+                    if (this.y + this.size > canvas.height || this.y < 0) {
+                        this.speedY *= -1;
+                    }
+
+                    if (this.rotate) {
+                        this.angle += this.rotateSpeed;
+                    }
+                }
+            }
+
+            startFalling() {
+                this.isFalling = true;
+            }
+
+            becomeMe() {
+                if (!this.isMe) {
+                    this.isMe = true;
+                    this.burstTime = 0;
+                }
+            }
+        }
+
+        const nus = [];
+        let meCount = 0;
+        let messageShown = false;
+        let messageTimeout = null;
+
+        function initializeNus() {
+            nus.length = 0;
+            for (let i = 0; i < 100; i++) {
+                const rotate = i < 60;
+                nus.push(new Nu(rotate));
+            }
+        }
+
+        initializeNus();
+
+        canvas.addEventListener('click', (event) => {
+            const clickX = event.clientX;
+            const clickY = event.clientY;
+
+            nus.forEach(nu => {
+                const distance = Math.sqrt((clickX - (nu.x + nu.size / 2)) ** 2 + (clickY - (nu.y + nu.size / 2)) ** 2);
+                if (distance < nu.size / 2) {
+                    if (!nu.isMe) {
+                        nu.becomeMe();
+                        meCount++;
+                        if (meCount >= 20) {
+                            fallAllNu();
+                            if (messageTimeout) clearTimeout(messageTimeout);
+                            messageTimeout = setTimeout(() => {
+                                showMessage();
+                            }, 5000);
+                        }
+                    }
+                }
+            });
+        });
+
+        function fallAllNu() {
+            nus.forEach(nu => {
+                if (!nu.isMe) {
+                    nu.startFalling();
+                }
+            });
+        }
+
+        function showMessage() {
+            const message = document.getElementById('message');
+            const messageContent = document.getElementById('messageContent');
+            const text = "あなたは「ぬ」を「め」に変えて消失させたのを、1個だけでなく20個も...この罪は非常に重い。あなたは「ぬ」の気持ちを何も考えていない。あなたはまだ気付いていない。「ぬ」を殺す度に、あなたの下へ「ぬ」が一歩ずつ近づいていることを。もうあなたの後ろに「ぬ」はいます。";
+
+            const lines = text.match(/.{1,40}/g); // 1行あたり40文字
+            messageContent.innerHTML = lines.map(line => `<div class="message-text">${line}</div>`).join('');
+            message.style.display = 'flex';
+
+            setTimeout(() => {
+                message.style.display = 'none';
+                showFinalMessage();
+            }, 10000);
+        }
+
+        function showFinalMessage() {
+            const finalMessage = document.getElementById('finalMessage');
+            const finalMessageContent = document.getElementById('finalMessageContent');
+            const finalText = "縺ゅ↑縺溘?縲後〓縲阪ｒ縲後ａ縲阪↓螟峨∴縺ｦ豸亥､ｱ縺輔○縺溘?繧偵??蛟九□縺代〒縺ｪ縺?0蛟九ｂ...縺薙?鄂ｪ縺ｯ髱槫ｸｸ縺ｫ驥阪＞縲ゅ≠縺ｪ縺溘?縲後〓縲阪?豌玲戟縺｡繧剃ｽ輔ｂ閠?∴縺ｦ縺?↑縺??ゅ≠縺ｪ縺溘?縺ｾ縺?豌嶺ｻ倥＞縺ｦ縺?↑縺??ゅ?後〓縲阪ｒ谿ｺ縺吝ｺｦ縺ｫ縲√≠縺ｪ縺溘?荳九∈縲後〓縲阪?縺?∪縺吶?」";
+
+            const lines = finalText.match(/.{1,40}/g); // 1行あたり40文字
+            finalMessageContent.innerHTML = lines.map(line => `<div class="message-text">${line}</div>`).join('');
+            finalMessage.style.display = 'flex';
+
+            setTimeout(() => {
+                finalMessage.style.display = 'none';
+                reset();
+            }, 10000);
+        }
+
+        function reset() {
+            initializeNus();
+            meCount = 0;
+            const message = document.getElementById('message');
+            const finalMessage = document.getElementById('finalMessage');
+            message.style.display = 'none';
+            finalMessage.style.display = 'none';
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            nus.forEach(nu => {
+                nu.update();
+                nu.draw();
+            });
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
